@@ -9,7 +9,7 @@
 #' @return a modified expression with count calls inserted before each previous
 #' call.
 #' @keywords internal
-trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
+trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
 
   # Construct the calls by hand to avoid a NOTE from R CMD check
   count <- function(key, val) {
@@ -25,7 +25,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     parent_functions <- deparse(substitute(x))
   }
   recurse <- function(y) {
-    lapply(y, trace_calls, parent_functions = parent_functions)
+    lapply(y, trace_calls_og, parent_functions = parent_functions)
   }
 
   if (is.atomic(x) || is.name(x) || is.null(x)) {
@@ -50,7 +50,7 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     if (identical(x[[1]], as.name("{")) && length(x) == 2 && is.call(x[[2]]) && identical(x[[2]][[1]], as.name("{"))) {
       as.call(x)
     } else if (!is.null(src_ref)) {
-      as.call(Map(trace_calls, x, src_ref, MoreArgs = list(parent_functions = parent_functions)))
+      as.call(Map(trace_calls_og, x, src_ref, MoreArgs = list(parent_functions = parent_functions)))
     } else if (!is.null(parent_ref)) {
       key <- new_counter(parent_ref, parent_functions)
       count(key, as.call(recurse(x)))
@@ -70,12 +70,12 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
        (is.symbol(fun_body) || !identical(fun_body[[1]], as.name("{")))) {
       src_ref <- attr(x, "srcref")
       key <- new_counter(src_ref, parent_functions)
-      fun_body <- count(key, trace_calls(fun_body, parent_functions))
+      fun_body <- count(key, trace_calls_og(fun_body, parent_functions))
     } else {
-      fun_body <- trace_calls(fun_body, parent_functions)
+      fun_body <- trace_calls_og(fun_body, parent_functions)
     }
 
-    new_formals <- trace_calls(formals(x), parent_functions)
+    new_formals <- trace_calls_og(formals(x), parent_functions)
     if (is.null(new_formals)) new_formals <- list()
     formals(x) <- new_formals
     body(x) <- fun_body
@@ -89,6 +89,21 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
   } else {
     message("Unknown language class: ", paste(class(x), collapse = "/"))
     x
+  }
+}
+
+trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
+  library(impuresrcref)
+  library(rcp)
+  typ <- Sys.getenv("COVR_TYPE")
+  writeLines(typ, "/tmp/trace_calls")
+  if (typ == "rcp") {
+    rcp::rcp_cmpfun(impuresrcref::impute_srcrefs(x), options = list(name = parent_functions, rcp.cmpfun.coverage = TRUE))
+  } else if (typ == "covr") {
+    res <- trace_calls_og(impuresrcref::impute_srcrefs(x), parent_functions = parent_functions, parent_ref = parent_ref)
+    compiler::cmpfun(res)
+  } else {
+    trace_calls_og(x, parent_functions = parent_functions, parent_ref = parent_ref)
   }
 }
 

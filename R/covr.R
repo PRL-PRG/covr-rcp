@@ -491,29 +491,33 @@ package_coverage <- function(path = ".",
 
 
     withCallingHandlers({
-      if ("vignettes" %in% type) {
-        type <- type[type != "vignettes"]
-        run_vignettes(pkg, install_path)
-      }
+      time <- system.time({
+        if ("vignettes" %in% type) {
+          type <- type[type != "vignettes"]
+          run_vignettes(pkg, install_path)
+        }
 
-      out_dir <- file.path(install_path, pkg$package)
-      if ("examples" %in% type) {
-        type <- type[type != "examples"]
-        # testInstalledPackage explicitly sets R_LIBS="" on windows, and does
-        # not restore it after, so we need to reset it ourselves.
-        withr::with_envvar(c(R_LIBS = Sys.getenv("R_LIBS")), {
-          result <- tools::testInstalledPackage(pkg$package, outDir = out_dir, types = "examples", lib.loc = install_path, ...)
+        out_dir <- file.path(install_path, pkg$package)
+        if ("examples" %in% type) {
+          type <- type[type != "examples"]
+          # testInstalledPackage explicitly sets R_LIBS="" on windows, and does
+          # not restore it after, so we need to reset it ourselves.
+          withr::with_envvar(c(R_LIBS = Sys.getenv("R_LIBS")), {
+            result <- tools::testInstalledPackage(pkg$package, outDir = out_dir, types = "examples", lib.loc = install_path, ...)
+            if (result != 0L) {
+              show_failures(out_dir)
+            }
+          })
+        }
+        if ("tests" %in% type) {
+          result <- tools::testInstalledPackage(pkg$package, outDir = out_dir, types = "tests", lib.loc = install_path, ...)
           if (result != 0L) {
             show_failures(out_dir)
           }
-        })
-      }
-      if ("tests" %in% type) {
-        result <- tools::testInstalledPackage(pkg$package, outDir = out_dir, types = "tests", lib.loc = install_path, ...)
-        if (result != 0L) {
-          show_failures(out_dir)
         }
-      }
+      })
+
+      writeLines(as.character(time["elapsed"]), file.path("/tmp", "covr_time"))
 
       # We always run the commands file (even if empty) to load the package and
       # initialize all the counters to 0.
@@ -526,6 +530,11 @@ package_coverage <- function(path = ".",
 
   # read tracing files
   trace_files <- list.files(path = install_path, pattern = "^covr_trace_[^/]+$", full.names = TRUE)
+  if (!file.exists(file.path("/tmp", "covr_time"))) {
+    stop("covr_time file not found, something went wrong with running the tests.")
+  }
+
+  elapsed <- as.numeric(readLines(file.path("/tmp", "covr_time")))
   coverage <- merge_coverage(trace_files)
   if (!uses_icc()) {
     res <- run_gcov(pkg$path, quiet = quiet, clean = clean)
@@ -538,6 +547,8 @@ package_coverage <- function(path = ".",
     package = pkg,
     root = root
   )
+
+  attr(coverage, "elapsed") <- elapsed
 
   if (!clean) {
     attr(coverage, "library") <- install_path
