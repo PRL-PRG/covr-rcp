@@ -93,18 +93,23 @@ trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
 }
 
 trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
-  library(impuresrcref)
+  library(imputesrcref)
   library(rcp)
+
   typ <- Sys.getenv("COVR_TYPE")
-  writeLines(typ, "/tmp/trace_calls")
-  if (typ == "rcp") {
-    rcp::rcp_cmpfun(impuresrcref::impute_srcrefs(x), options = list(name = parent_functions, rcp.cmpfun.coverage = TRUE))
-  } else if (typ == "covr") {
-    res <- trace_calls_og(impuresrcref::impute_srcrefs(x), parent_functions = parent_functions, parent_ref = parent_ref)
-    compiler::cmpfun(res)
-  } else {
+
+  switch(typ,
+    "rcp" = {
+      rcp::rcp_cmpfun(imputesrcref::impute_srcrefs(x), options = list(name = parent_functions, coverage = TRUE))
+      },
+    "covr" = {
+      res <- trace_calls_og(imputesrcref::impute_srcrefs(x), parent_functions = parent_functions, parent_ref = parent_ref)
+      rcp::rcp_cmpfun(res)
+    },
+    {
     trace_calls_og(x, parent_functions = parent_functions, parent_ref = parent_ref)
-  }
+    }
+  )
 }
 
 .counters <- new.env(parent = emptyenv())

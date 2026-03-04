@@ -141,9 +141,36 @@ SEXP covr_duplicate_(SEXP x) { return duplicate(x); }
 extern SEXP covr_duplicate_(SEXP);
 extern SEXP covr_reassign_function(SEXP, SEXP);
 
+SEXP covr_copy_body_attributes(SEXP new_func, SEXP old_func) {
+    // 1. Ensure inputs are closures (functions)
+    if (TYPEOF(new_func) != CLOSXP || TYPEOF(old_func) != CLOSXP) {
+        error("Both arguments must be closures (functions).");
+    }
+
+    // 2. Access the bodies of the closures
+    SEXP new_body = BODY(new_func);
+    SEXP old_body = BODY(old_func);
+
+    // 3. Get the attributes list from the old body
+    SEXP old_attribs = ATTRIB(old_body);
+
+    // 4. Duplicate the attributes to avoid shared reference issues
+    //    R is copy-on-modify; we don't want 'new' and 'old' to share the exact same attribute memory pointer.
+    SEXP attribs_copy = duplicate(old_attribs);
+
+    // 5. Apply attributes to the new body
+    //    NOTE: If new_body is BCODESXP (bytecode), this macro might still trigger internal R mechanisms
+    //    that strip the bytecode if R decides BCODESXP cannot support these modifications.
+    SET_ATTRIB(new_body, attribs_copy);
+
+    // Return the modified new_func (or NULL, as the modification is done in-place on the SEXP)
+    return new_func;
+}
+
 static const R_CallMethodDef CallEntries[] = {
     {"covr_duplicate_", (DL_FUNC)&covr_duplicate_, 1},
     {"covr_reassign_function", (DL_FUNC)&covr_reassign_function, 2},
+    {"covr_copy_body_attributes", (DL_FUNC)&covr_copy_body_attributes, 2},
     {NULL, NULL, 0}};
 
 void R_init_covr(DllInfo *dll) {
