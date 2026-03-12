@@ -99,16 +99,28 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
   typ <- Sys.getenv("COVR_TYPE")
 
   switch(typ,
-    "rcp" = {
-      rcp::rcp_cmpfun(imputesrcref::impute_srcrefs(x), options = list(name = parent_functions, coverage = TRUE))
+    "coverage-rcp" = {
+      options(rcp.cmpfun.coverage = TRUE)
+      rcp::rcp_cmpfun(imputesrcref::impute_srcrefs(x), options = list(name = parent_functions))
       },
-    "covr" = {
+    "vanilla-rcp" = {
+      options(rcp.cmpfun.coverage = FALSE)
+      rcp::rcp_cmpfun(imputesrcref::impute_srcrefs(x), options = list(name = parent_functions))
+      },
+    "coverage-covr-ast" = {
+      trace_calls_og(imputesrcref::impute_srcrefs(x), parent_functions = parent_functions, parent_ref = parent_ref)
+      },
+    "coverage-covr-bc" = {
       res <- trace_calls_og(imputesrcref::impute_srcrefs(x), parent_functions = parent_functions, parent_ref = parent_ref)
-      rcp::rcp_cmpfun(res)
+      compiler::cmpfun(res)
     },
-    {
+    "vanilla-bc" = {
+      compiler::cmpfun(imputesrcref::impute_srcrefs(x))
+    },
+    "vanilla-ast" = {
+      imputesrcref::impute_srcrefs(x)
+    },
     trace_calls_og(x, parent_functions = parent_functions, parent_ref = parent_ref)
-    }
   )
 }
 
