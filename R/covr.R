@@ -364,7 +364,7 @@ package_coverage <- function(path = ".",
                              line_exclusions = NULL,
                              function_exclusions = NULL,
                              code = character(),
-                             install_path = temp_file("R_LIBS"),
+                             install_path = "/home/matej/src/lib",
                              ...,
                              exclusions, pre_clean = TRUE) {
 
@@ -432,43 +432,11 @@ package_coverage <- function(path = ".",
       clean_objects(pkg$path)
       clean_gcov(pkg$path)
       clean_parse_data()
-      unlink(install_path, recursive = TRUE)
     }, add = TRUE)
   }
 
   # clean any dlls prior to trying to install
   if (isTRUE(pre_clean)) clean_objects(pkg$path)
-
-  # install the package in a temporary directory
-  withr::with_envvar(
-    list(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep)),
-    withr::with_makevars(flags, assignment = "+=", {
-      args <- c(
-        "--vanilla", "CMD", "INSTALL",
-        "-l", shQuote(install_path),
-        "--example",
-        "--install-tests",
-        "--with-keep.source",
-        "--with-keep.parse.data",
-        "--no-staged-install",
-        "--no-multiarch",
-        shQuote(pkg$path)
-      )
-
-      name <- if (.Platform$OS.type == "windows") "R.exe" else "R"
-      path <- file.path(R.home("bin"), name)
-      res <- system2(
-        path,
-        args,
-        stdout = if (quiet) NULL else "",
-        stderr = if (quiet) NULL else ""
-      )
-    })
-  )
-
-  if (res != 0) {
-    stop("Package installation did not succeed.")
-  }
 
   # add hooks to the package startup
   add_hooks(pkg$package, install_path,
