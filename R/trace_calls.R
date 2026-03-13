@@ -96,29 +96,37 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
   library(imputesrcref)
   library(rcp)
 
+  fun <- tryCatch(
+    imputesrcref::impute_srcrefs(x),
+    error = function(e) {
+      warning("impute_srcrefs failed: ", conditionMessage(e), "; continuing with original x", call. = FALSE)
+      x
+    }
+  )
+
   typ <- Sys.getenv("COVR_TYPE")
 
   switch(typ,
     "coverage-rcp" = {
       options(rcp.cmpfun.coverage = TRUE)
-      rcp::rcp_cmpfun(imputesrcref::impute_srcrefs(x), options = list(name = parent_functions))
+      rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
       },
     "vanilla-rcp" = {
       options(rcp.cmpfun.coverage = FALSE)
-      rcp::rcp_cmpfun(imputesrcref::impute_srcrefs(x), options = list(name = parent_functions))
+      rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
       },
     "coverage-covr-ast" = {
-      trace_calls_og(imputesrcref::impute_srcrefs(x), parent_functions = parent_functions, parent_ref = parent_ref)
+      trace_calls_og(fun, parent_functions = parent_functions, parent_ref = parent_ref)
       },
     "coverage-covr-bc" = {
-      res <- trace_calls_og(imputesrcref::impute_srcrefs(x), parent_functions = parent_functions, parent_ref = parent_ref)
+      res <- trace_calls_og(fun, parent_functions = parent_functions, parent_ref = parent_ref)
       compiler::cmpfun(res)
     },
     "vanilla-bc" = {
-      compiler::cmpfun(imputesrcref::impute_srcrefs(x))
+      compiler::cmpfun(fun)
     },
     "vanilla-ast" = {
-      imputesrcref::impute_srcrefs(x)
+      fun
     },
     trace_calls_og(x, parent_functions = parent_functions, parent_ref = parent_ref)
   )
