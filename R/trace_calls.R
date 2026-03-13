@@ -97,8 +97,8 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
   library(rcp)
 
   fun <- tryCatch(
-    options(imputesrcref.allow_deparse_fallback = TRUE)
-    options(impuresrcref.allow_deparse_fallback = TRUE)
+    options(imputesrcref.allow_deparse_fallback = TRUE),
+    options(impuresrcref.allow_deparse_fallback = TRUE),
     imputesrcref::impute_srcrefs(x),
     error = function(e) {
       warning("impute_srcrefs failed: ", conditionMessage(e), "; continuing with original x", call. = FALSE)
