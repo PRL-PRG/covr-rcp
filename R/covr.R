@@ -599,6 +599,7 @@ show_failures <- function(dir) {
     # R will only show options("warning.length") number of characters in an
     # error, so show the last characters of that number
     error_header <- paste0("Failure in `", file, "`\n")
+    writeLines(readLines(file, warn = FALSE))
 
     # 9 is the length of `Error: ` + newline + NUL maybe?
     error_length <- getOption("warning.length") - 9
