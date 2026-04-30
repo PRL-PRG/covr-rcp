@@ -93,9 +93,6 @@ trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
 }
 
 trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
-  library(imputesrcref)
-  library(rcp)
-
   fun <- tryCatch(
     imputesrcref::impute_srcrefs(x),
     error = function(e) {
@@ -108,10 +105,12 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
 
   switch(typ,
     "coverage-rcp" = {
+      library(rcp)
       options(rcp.cmpfun.coverage = TRUE)
       rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
       },
     "vanilla-rcp" = {
+      library(rcp)
       options(rcp.cmpfun.coverage = FALSE)
       rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
       },
