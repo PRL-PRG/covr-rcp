@@ -92,13 +92,33 @@ trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
   }
 }
 
+#' Instrument a function for coverage tracking
+#'
+#' Pre-imputes transparent brace srcrefs via [imputesrcref::impute_srcrefs()]
+#' so that injected `{}` wrappers carry source-accurate srcref metadata, then
+#' applies whichever instrumentation pipeline the `COVR_TYPE` env var selects
+#' (or falls back to the legacy AST walker).
+#'
+#' `imputesrcref.allow_deparse_fallback` is forced to `FALSE` for the impute
+#' call: covr reports coverage per-line, so srcrefs produced from a deparsed
+#' (and therefore reformatted) function body would silently misalign the
+#' report. Functions without `srcref` metadata are passed through unchanged.
+#'
+#' @param x A function to instrument.
+#' @param parent_functions Names of enclosing functions (used by the legacy
+#'   walker for key generation).
+#' @param parent_ref Forwarded to [trace_calls_og()] for the legacy AST mode.
+#' @keywords internal
 trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
-  fun <- tryCatch(
-    imputesrcref::impute_srcrefs(x),
-    error = function(e) {
-      warning("impute_srcrefs failed: ", conditionMessage(e), "; continuing with original x", call. = FALSE)
-      x
-    }
+  fun <- withr::with_options(
+    list(imputesrcref.allow_deparse_fallback = FALSE),
+    tryCatch(
+      suppressMessages(imputesrcref::impute_srcrefs(x)),
+      error = function(e) {
+        warning("impute_srcrefs failed: ", conditionMessage(e), "; continuing with original x", call. = FALSE)
+        x
+      }
+    )
   )
 
   typ <- Sys.getenv("COVR_TYPE")
