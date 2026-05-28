@@ -9,12 +9,13 @@
 #' @return a modified expression with count calls inserted before each previous
 #' call.
 #' @keywords internal
-trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
-
+trace_calls_og <- function(x, parent_functions = NULL, parent_ref = NULL) {
   # Construct the calls by hand to avoid a NOTE from R CMD check
   count <- function(key, val) {
-    call("if", TRUE,
-      call("{",
+    call(
+      "if", TRUE,
+      call(
+        "{",
         as.call(list(call(":::", as.symbol("covr"), as.symbol("count")), key)),
         val
       )
@@ -58,7 +59,6 @@ trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
       as.call(recurse(x))
     }
   } else if (is.function(x)) {
-
     # We cannot trace primitive functions
     if (is.primitive(x)) {
       return(x)
@@ -67,7 +67,7 @@ trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
     fun_body <- body(x)
 
     if (!is.null(attr(x, "srcref")) &&
-       (is.symbol(fun_body) || !identical(fun_body[[1]], as.name("{")))) {
+      (is.symbol(fun_body) || !identical(fun_body[[1]], as.name("{")))) {
       src_ref <- attr(x, "srcref")
       key <- new_counter(src_ref, parent_functions)
       fun_body <- count(key, trace_calls_og(fun_body, parent_functions))
@@ -97,7 +97,7 @@ trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
 #' Pre-imputes transparent brace srcrefs via [imputesrcref::impute_srcrefs()]
 #' so that injected `{}` wrappers carry source-accurate srcref metadata, then
 #' applies whichever instrumentation pipeline the `COVR_TYPE` env var selects
-#' (or falls back to the legacy AST walker).
+#' (or falls back to `coverage-rcp` by default).
 #'
 #' `imputesrcref.allow_deparse_fallback` is forced to `FALSE` for the impute
 #' call: covr reports coverage per-line, so srcrefs produced from a deparsed
@@ -107,36 +107,39 @@ trace_calls_og <- function (x, parent_functions = NULL, parent_ref = NULL) {
 #' @param x A function to instrument.
 #' @param parent_functions Names of enclosing functions (used by the legacy
 #'   walker for key generation).
-#' @param parent_ref Forwarded to [trace_calls_og()] for the legacy AST mode.
+#' @param parent_ref Forwarded to [trace_calls_og()] when `COVR_TYPE="og"`.
+#'   Unused for all other types.
 #' @keywords internal
-trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
-  fun <- withr::with_options(
-    list(imputesrcref.allow_deparse_fallback = FALSE),
-    tryCatch(
-      suppressMessages(imputesrcref::impute_srcrefs(x)),
-      error = function(e) {
-        warning("impute_srcrefs failed: ", conditionMessage(e), "; continuing with original x", call. = FALSE)
-        x
-      }
-    )
-  )
-
+trace_calls <- function(x, parent_functions = NULL, parent_ref = NULL) {
   typ <- Sys.getenv("COVR_TYPE")
 
+  fun <- if (typ != "og") {
+    withr::with_options(
+      list(imputesrcref.allow_deparse_fallback = FALSE),
+      tryCatch(
+        suppressMessages(imputesrcref::impute_srcrefs(x)),
+        error = function(e) {
+          warning("impute_srcrefs failed: ", conditionMessage(e), "; continuing with original x", call. = FALSE)
+          x
+        }
+      )
+    )
+  } else {
+    x
+  }
+
   switch(typ,
-    "coverage-rcp" = {
-      library(rcp)
-      options(rcp.cmpfun.coverage = TRUE)
-      rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
-      },
+    "og" = {
+      trace_calls_og(fun, parent_functions = parent_functions, parent_ref = parent_ref)
+    },
     "vanilla-rcp" = {
       library(rcp)
       options(rcp.cmpfun.coverage = FALSE)
       rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
-      },
+    },
     "coverage-covr-ast" = {
       trace_calls_og(fun, parent_functions = parent_functions, parent_ref = parent_ref)
-      },
+    },
     "coverage-covr-bc" = {
       res <- trace_calls_og(fun, parent_functions = parent_functions, parent_ref = parent_ref)
       compiler::cmpfun(res)
@@ -147,7 +150,12 @@ trace_calls <- function (x, parent_functions = NULL, parent_ref = NULL) {
     "vanilla-ast" = {
       fun
     },
-    trace_calls_og(x, parent_functions = parent_functions, parent_ref = parent_ref)
+    "coverage-rcp" = ,
+    {
+      library(rcp)
+      options(rcp.cmpfun.coverage = TRUE)
+      rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
+    }
   )
 }
 
