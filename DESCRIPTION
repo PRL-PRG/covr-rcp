@@ -53,7 +53,9 @@ Imports:
     httr,
     cli,
     withr (>= 1.0.2),
-    yaml
+    yaml,
+    rcp,
+    imputesrcref
 Suggests:
     R6,
     S7 (>= 0.2.0),
