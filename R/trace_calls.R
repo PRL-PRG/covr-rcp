@@ -120,7 +120,7 @@ trace_calls <- function(x, parent_functions = NULL, parent_ref = NULL) {
     withr::with_options(
       list(imputesrcref.allow_deparse_fallback = FALSE),
       tryCatch(
-        suppressMessages(imputesrcref::impute_srcrefs(x)),
+        imputesrcref::impute_srcrefs(x, quiet = TRUE),
         error = function(e) {
           warning("impute_srcrefs failed: ", conditionMessage(e), "; continuing with original x", call. = FALSE)
           x
