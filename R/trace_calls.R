@@ -113,6 +113,9 @@ trace_calls_og <- function(x, parent_functions = NULL, parent_ref = NULL) {
 trace_calls <- function(x, parent_functions = NULL, parent_ref = NULL) {
   typ <- Sys.getenv("COVR_TYPE")
 
+  # To get converage with promises (comparable to covr)
+  options(rcp.cmpfun.compile_promises = TRUE)
+
   fun <- if (typ != "og") {
     withr::with_options(
       list(imputesrcref.allow_deparse_fallback = FALSE),
