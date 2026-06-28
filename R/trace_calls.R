@@ -97,7 +97,7 @@ trace_calls_og <- function(x, parent_functions = NULL, parent_ref = NULL) {
 #' Pre-imputes transparent brace srcrefs via [imputesrcref::impute_srcrefs()]
 #' so that injected `{}` wrappers carry source-accurate srcref metadata, then
 #' applies whichever instrumentation pipeline the `COVR_TYPE` env var selects
-#' (or falls back to `coverage-rcp` by default).
+#' (defaulting to `coverage-rcp-full` when unset; an unrecognised value errors).
 #'
 #' `imputesrcref.allow_deparse_fallback` is forced to `FALSE` for the impute
 #' call: covr reports coverage per-line, so srcrefs produced from a deparsed
@@ -112,6 +112,12 @@ trace_calls_og <- function(x, parent_functions = NULL, parent_ref = NULL) {
 #' @keywords internal
 trace_calls <- function(x, parent_functions = NULL, parent_ref = NULL) {
   typ <- Sys.getenv("COVR_TYPE")
+  # Unset -> default to the full rcp coverage path. A set-but-unrecognised value
+  # is a configuration error and is rejected below rather than silently falling
+  # back to the AST tracer.
+  if (!nzchar(typ)) {
+    typ <- "coverage-rcp-full"
+  }
 
   # To get converage with promises (comparable to covr)
   options(rcp.cmpfun.compile_promises = TRUE)
@@ -135,6 +141,21 @@ trace_calls <- function(x, parent_functions = NULL, parent_ref = NULL) {
     "og" = {
       trace_calls_og(fun, parent_functions = parent_functions, parent_ref = parent_ref)
     },
+    "coverage-rcp" = {
+      library(rcp)
+      options(rcp.cmpfun.coverage = TRUE)
+      rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
+    },
+    "coverage-rcp-full" = {
+      # Identical instrumentation to coverage-rcp. The difference is set earlier:
+      # the package is byte-compiled at optimize level 1 at install time (see
+      # R_COMPILER_OPTIMIZE in the install step), so the bytecode rcp
+      # copy-and-patches still carries the srcref-bearing instructions coverage
+      # needs (no inlining / constant-folding away of branches).
+      library(rcp)
+      options(rcp.cmpfun.coverage = TRUE)
+      rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
+    },
     "vanilla-rcp" = {
       library(rcp)
       options(rcp.cmpfun.coverage = FALSE)
@@ -153,12 +174,13 @@ trace_calls <- function(x, parent_functions = NULL, parent_ref = NULL) {
     "vanilla-ast" = {
       fun
     },
-    "coverage-rcp" = ,
-    {
-      library(rcp)
-      options(rcp.cmpfun.coverage = TRUE)
-      rcp::rcp_cmpfun(fun, options = list(name = parent_functions))
-    }
+    stop(
+      sprintf(
+        "Unknown COVR_TYPE '%s'. Valid values: og, coverage-rcp, coverage-rcp-full, vanilla-rcp, coverage-covr-ast, coverage-covr-bc, vanilla-bc, vanilla-ast.",
+        typ
+      ),
+      call. = FALSE
+    )
   )
 }
 

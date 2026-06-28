@@ -440,8 +440,19 @@ package_coverage <- function(path = ".",
   if (isTRUE(pre_clean)) clean_objects(pkg$path)
 
   # install the package in a temporary directory
+  install_env <- list(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
+  # R CMD INSTALL byte-compiles the package. For the full rcp coverage type we
+  # want that done at optimize level 1, so the compiler keeps the srcref-bearing
+  # instructions coverage relies on (higher levels inline builtins / constant-fold
+  # them away, dropping those lines from coverage). The byte compiler reads
+  # R_COMPILER_OPTIMIZE on load in the install subprocess, which inherits this env.
+  covr_type <- Sys.getenv("COVR_TYPE")
+  if (!nzchar(covr_type)) covr_type <- "coverage-rcp-full"
+  if (identical(covr_type, "coverage-rcp-full")) {
+    install_env$R_COMPILER_OPTIMIZE <- "1"
+  }
   withr::with_envvar(
-    list(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep)),
+    install_env,
     withr::with_makevars(flags, assignment = "+=", {
       args <- c(
         "--vanilla", "CMD", "INSTALL",
@@ -610,7 +621,17 @@ show_failures <- function(dir) {
 
     error_body <- substr(error_body, body_len - (error_length - header_len), body_len)
 
-    cnd <- structure(list(message = paste0(error_header, error_body)), class = c("covr_error", "error", "condition"))
+    msg <- paste0(error_header, error_body)
+    # When covr.continue_on_failure is set, report failures as warnings and keep
+    # going: the coverage trace is flushed by an onexit finalizer regardless of
+    # test outcome, so coverage is still complete. Useful for benchmarking, where
+    # which lines executed matters more than whether the tests passed.
+    if (isTRUE(getOption("covr.continue_on_failure", FALSE))) {
+      warning(structure(list(message = msg, call = NULL),
+        class = c("covr_failure_warning", "warning", "condition")))
+      next
+    }
+    cnd <- structure(list(message = msg), class = c("covr_error", "error", "condition"))
     stop(cnd)
   }
 }
